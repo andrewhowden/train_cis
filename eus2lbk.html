@@ -1,0 +1,206 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="30">
+    <title>Train CIS</title>
+  
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="apple-touch-icon" href="icon.png">
+
+	<!-- Font Awesome -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+	<!-- Bootstrap core CSS -->
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet">
+	<!-- Material Design Bootstrap -->
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.5.0/css/mdb.min.css" rel="stylesheet">
+
+	<style>
+	@-ms-viewport{width: device-width;}
+	.card{margin: 10px;}
+  .navbar{margin: 0px;}
+  .bg-dark {background-color: #b0b0b0!important;}
+  .btn {
+    padding: 10px;
+    width: 110px;
+  }
+	</style>
+
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<!-- JQuery -->
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<!-- Bootstrap tooltips -->
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.13.0/umd/popper.min.js"></script>
+	<!-- Bootstrap core JavaScript -->
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0/js/bootstrap.min.js"></script>
+	<!-- MDB core JavaScript -->
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.5.0/js/mdb.min.js" defer></script>
+  </head>
+  <body>
+
+  <div class="pos-f-t">
+    <div class="collapse" id="navbarToggleExternalContent">
+      <div class="bg-dark p-4">
+        <h4 class="text-white"></h4> <!-- title -->
+        <span class="text-muted">
+            <br><p id="footer">Data from National Rail. 2.3.6.<br></p>
+            <script>
+            let today = new Date();
+            let date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+            let time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+            let dateTime = date+' '+time;
+            document.getElementById("footer").innerHTML += dateTime; 
+            </script>
+        </span>
+      </div>
+    </div>
+    <nav class="navbar navbar-dark bg-dark">
+      <button class="navbar-toggler" type="button" data-toggle="collapse"
+        data-target="#navbarToggleExternalContent" aria-controls="navbarToggleExternalContent"
+        aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+    </nav>
+  </div>
+
+  <div class="card-body">
+      <p class="card-text">
+        <center>
+          <!-- Buttons -->
+          <p id="topbuttons"></p>
+        <!-- <button value="Refresh Page" onClick="window.location.reload();" class="btn btn-primary">Refresh</button> -->
+        <script>
+          //document.getElementById("buttons").innerHTML = "<a href="+r1URL+" class=\"btn btn-primary\">JSON</a>";
+          document.getElementById("topbuttons").innerHTML = "<a href=\"eus2lbk.html?from=eus&to=lbk\" class=\"btn btn-primary\">EUS > LBK</a>";
+          document.getElementById("topbuttons").innerHTML += "<a href=\"eus2lbk.html?from=lbk&to=eus\" class=\"btn btn-primary\">LBK > EUS</a>";
+          document.getElementById("topbuttons").innerHTML += "<a href=\"eus2lbk.html?from=nmp&to=lbk\" class=\"btn btn-primary\">NMP > LBK</a>";
+          document.getElementById("topbuttons").innerHTML += "<a href=\"eus2lbk.html?from=lbk&to=nmp\" class=\"btn btn-primary\">LBK > NMP</a>";
+        </script>
+        </center>
+      </p>
+</div>
+		<!-- Card -->
+		<div class="card">
+
+		<!-- Card content -->
+		<div class="card-body">
+
+		<!-- Title 
+    <h4 class="card-title"><a>Train Timetable</a></h4>
+    -->
+
+		<!-- Text -->
+		<p class="card-text">
+      
+        <p id="demo1"></p>
+
+        <script>
+
+        let url_string = window.location.href; // http://www.example.com/t.html?a=1&b=3&c=m2-m3-m4-m5
+        let url = new URL(url_string);
+
+        let from = url.searchParams.get("from");
+          if (from == null) {from = "eus";}; //default from
+        from = from.replace(/(<([^>]+)>)/ig,"");
+
+        let to = url.searchParams.get("to");
+         if (to == null) {to = "lbk";}; //default to
+        to = to.replace(/(<([^>]+)>)/ig,"");
+
+        let r1 = new XMLHttpRequest();
+        let r1URL = "https://huxley.apphb.com/all/"+from+"/to/"+to+"/1?accessToken=e6278671-7ebe-4a4b-9c37-1e0d2cf2a0ab";
+        r1.open("GET", r1URL, true);
+        r1.onreadystatechange = function () {
+            if (r1.readyState != 4 || r1.status != 200) {
+              return 
+            } else {
+              document.getElementById("demo1").innerHTML = "[E0] Looks like the data couldn't be loaded, please refresh to try again.";
+            };
+            let resp1 = JSON.parse(r1.response);
+            if (resp1.trainServices && resp1.trainServices.length > 0) {
+              rsid = resp1.trainServices[0].rsid;
+              locationName = resp1.locationName;
+              filterLocationName = resp1.filterLocationName;
+              std = resp1.trainServices[0].std;
+              etd = resp1.trainServices[0].etd;
+                if (etd !== "Delayed" && etd !== "Cancelled" && etd !== "On time") {etd = "Exp " + etd}; 
+                //Exp from LBK, Expt from EUS
+              platform = resp1.trainServices[0].platform;
+                if (platform == null) {platform = "--"};
+              operatorCode = resp1.trainServices[0].operatorCode;
+              length = resp1.trainServices[0].length;
+              detachFront = resp1.trainServices[0].detachFront;
+              isReverseFormation = resp1.trainServices[0].isReverseFormation;
+            } else {
+              document.getElementById("demo1").innerHTML = "[E1] Looks like there's no data/trains available for the stations selected";
+            }
+        };
+        r1.send();
+
+        let r = new XMLHttpRequest();
+        let r2URL = "https://huxley.apphb.com/staffdepartures/"+from+"?accessToken=3af884ea-875d-41c6-ac5d-3047fc59a481";
+        r.open("GET", r2URL, true);
+        r.onreadystatechange = function () {
+            if (r.readyState != 4 || r.status != 200) {
+            return 
+            } else {
+              document.getElementById("demo1").innerHTML += "<br>[E2] No match found in staff JSON, please refresh to try again.";
+            };
+            let resp = JSON.parse(r.response);
+            if (resp.trainServices && resp.trainServices.length > 0) {
+                for (let i = 0; i < resp.trainServices.length; i++){
+                  //document.getElementById("demo1").innerHTML = "[E4] Debug: " + i;
+                    //if (resp.trainServices[i].rsid == rsid){ // rsid no longer valid
+                    if (resp.trainServices[i].std.substring(11, 16) == std && resp.trainServices[i].operatorCode == operatorCode){
+                    // "std": "2019-10-07T19:15:00"
+                    // "std": "19:15" & "operatorCode": "LM"
+                        platformStaff = resp.trainServices[i].platform;
+                        //document.getElementById("demo1").innerHTML = "Platform: " + resp.trainServices[i].platform + "loc:" + locationName;
+                        document.getElementById("demo1").innerHTML = "The next <b>" + operatorCode + "</b> train from <b>" + locationName + "</b> to <b>" + filterLocationName + "</b> will leave at <b>" + std + "</b> (<b>" + etd + "</b>) from Platform <b>" + platform+ " </b>[<b>" + platformStaff + "</b>].<br><br>";
+                        document.getElementById("demo1").innerHTML += "Carriages: ";
+                          for (i = 1; i <= length; i++) {
+                            if (i === 1 || i === 5 ||i === 9){document.getElementById("demo1").innerHTML += "[";};
+                            document.getElementById("demo1").innerHTML += i;
+                            if (i === 4 || i === 8 ||i === 12){document.getElementById("demo1").innerHTML += "]";};
+                          }
+                          document.getElementById("demo1").innerHTML += ". ";
+                          if (detachFront === true && isReverseFormation === false) {document.getElementById("demo1").innerHTML += "Rear Only."};
+                          if (detachFront === true && isReverseFormation === true) {document.getElementById("demo1").innerHTML += "Front Only."};
+                          if (detachFront === false) {document.getElementById("demo1").innerHTML += "All through."};
+                      }
+                      //else {
+                        //document.getElementById("demo1").innerHTML = "[E3] Data not matched. Debug ONLY: (" + resp.trainServices[i].std.substring(11, 16) + "==" + std + " && " + resp.trainServices[i].operatorCode + "==" + operatorCode + ")";
+                      //}
+              }
+            } else {
+              document.getElementById("demo1").innerHTML = "Sorry, no trains from " + locationName + " departing soon.";  
+              //alert("Ooops");
+            }
+        };
+        r.send();
+
+
+//document.getElementById("demo1").innerHTML = "The next train from <b>" + resp1.locationName + "</b> to <b>" + resp1.filterLocationName + "</b> will leave at <b>" + resp1.trainServices[0].std + "</b> (<b>" + resp1.trainServices[0].etd + "</b>) from platform <b>" + resp1.trainServices[0].platform+ " [" + resp.trainServices[i].platform + "]</b>.";
+//document.getElementById("demo1").innerHTML = "Sorry, no trains from " + resp1.locationName + " departing soon.";
+
+        </script>
+      
+    </p>
+		<center>
+        <!-- Buttons -->
+        <p id="buttons"></p>
+      <!-- <button value="Refresh Page" onClick="window.location.reload();" class="btn btn-primary">Refresh</button> -->
+      <script>
+        document.getElementById("buttons").innerHTML = "<a href="+r1URL+" class=\"btn btn-primary\">JSON</a>";
+        document.getElementById("buttons").innerHTML += "<a href="+r2URL+" class=\"btn btn-primary\">Staff JSON</a>";
+      </script>
+		</center>
+		</div>
+		</div>
+    <!-- Card -->
+
+  </body>
+
+</html>
