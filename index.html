@@ -1,0 +1,153 @@
+<!--API_KEY = "ZulOVGAsPxVVFAIKUY0CYoBo5lkQ280LpIxPHVnEWM81uDn6"-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Train Departures v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-blue-50 text-blue-900">
+
+    <div class="container mx-auto p-6">
+        <h2 class="text-3xl font-bold text-center text-blue-800 mb-4">🚆 Live Train Departures</h2>
+        <p class="text-center text-blue-600 mb-2">Euston → Long Buckby</p>
+
+        <p id="loading" class="text-center text-blue-600 font-medium hidden">Loading train data...</p>
+
+        <div class="overflow-x-auto">
+            <table class="table-auto w-full bg-white shadow-md border border-blue-300">
+                <thead class="bg-blue-200 border-b border-blue-300">
+                    <tr>
+                        <th class="p-3 border border-blue-300">Departure</th>
+                        <th class="p-3 border border-blue-300">Expected</th>
+                        <th class="p-3 border border-blue-300">Delay (min)</th>
+                        <th class="p-3 border border-blue-300">Platform</th>
+                        <th class="p-3 border border-blue-300">Carriages</th>
+                        <th class="p-3 border border-blue-300">Operator</th>
+                        <th class="p-3 border border-blue-300">Status</th>
+                        <th class="p-3 border border-blue-300">Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="trainData" class="text-center">
+                    <tr><td colspan="8" class="p-3 text-blue-500 border border-blue-300">Fetching train data...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="mt-4 text-center text-sm text-blue-600">
+            Last updated: <span id="lastUpdated">Loading...</span> | Refreshes every 30 seconds
+        </footer>
+    </div>
+
+    <script>
+        const API_KEY = 'ZulOVGAsPxVVFAIKUY0CYoBo5lkQ280LpIxPHVnEWM81uDn6'; // Replace with your actual API key
+        const API_URL = 'https://api1.raildata.org.uk/1010-live-departure-board---staff-version1_0/LDBSVWS/api/20220120/GetDepBoardWithDetails/EUS/';
+        const refreshInterval = 30000; // 30 seconds
+
+        async function fetchTrainData() {
+            const loadingMessage = document.getElementById("loading");
+            loadingMessage.classList.remove("hidden");
+
+            const now = new Date();
+            const formattedTime = now.toISOString().replace(/[-:]/g, '').split('.')[0]; // Full timestamp format
+
+            const requestUrl = `${API_URL}${formattedTime}?filterCRS=LBK&filterType=to&numRows=5&timeWindow=120`;
+
+            console.log("Fetching:", requestUrl);
+
+            try {
+                const response = await fetch(requestUrl, {
+                    headers: { "x-apikey": API_KEY }
+                });
+
+                console.log("Response Status:", response.status);
+                
+                if (!response.ok) {
+                    console.error("Error:", response.status, await response.text());
+                    throw new Error(`HTTP Error ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("API Response:", data);
+
+                const tableBody = document.getElementById("trainData");
+                tableBody.innerHTML = "";
+
+                if (!data.trainServices || data.trainServices.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="8" class="p-3 text-blue-500 border border-blue-300">No trains found</td></tr>`;
+                } else {
+                    data.trainServices.forEach(train => {
+                        const scheduledTime = formatTime(train.std);
+                        const expectedTime = formatTime(train.etd);
+                        const delay = (train.etd && train.std && train.etd !== 'On time')
+                            ? calculateDelay(train.std, train.etd)
+                            : 0;
+                        const status = train.isCancelled 
+                            ? "Cancelled" 
+                            : train.std === train.etd 
+                            ? "On Time" 
+                            : "Delayed";
+                        const reason = train.cancelReason || train.delayReason || "No reason given";
+                        const trainLength = train.length && !isNaN(train.length) ? `${train.length} carriages` : "Unknown";
+
+                        const statusColor = train.isCancelled 
+                            ? "text-red-600 font-semibold" 
+                            : delay > 0 
+                            ? "text-orange-600 font-semibold"
+                            : "text-green-600 font-semibold";
+
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td class="p-3 border border-blue-300">${scheduledTime}</td>
+                            <td class="p-3 border border-blue-300">${expectedTime}</td>
+                            <td class="p-3 border border-blue-300">${delay > 0 ? delay : '—'}</td>
+                            <td class="p-3 border border-blue-300">${train.platform || 'TBA'}</td>
+                            <td class="p-3 border border-blue-300">${trainLength}</td>
+                            <td class="p-3 border border-blue-300">${train.operator || 'Unknown'}</td>
+                            <td class="p-3 border border-blue-300 ${statusColor}">${status}</td>
+                            <td class="p-3 border border-blue-300">${reason}</td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching train data:", error);
+                document.getElementById("trainData").innerHTML = `<tr><td colspan="8" class="p-3 text-red-500 border border-blue-300">Error loading train data</td></tr>`;
+            } finally {
+                loadingMessage.classList.add("hidden");
+                document.getElementById("lastUpdated").textContent = new Date().toLocaleString();
+            }
+        }
+
+        function formatTime(timeStr) {
+            if (!timeStr || typeof timeStr !== 'string') return "N/A";
+
+            // Handle API returning full datetime (e.g., 2025-01-31T16:20:00Z)
+            if (timeStr.includes("T")) {
+                return timeStr.split("T")[1].slice(0, 5); // Extract HH:MM from ISO format
+            }
+
+            // If it's already in HH:MM format
+            if (timeStr.includes(":")) {
+                return timeStr.slice(0, 5);
+            }
+
+            return "N/A"; // Default if unknown format
+        }
+
+        function calculateDelay(std, etd) {
+            if (!std || !etd || std === "N/A" || etd === "N/A") return 0;
+            const parseTime = (time) => {
+                const [hh, mm] = time.split(':').map(Number);
+                return hh * 60 + mm;
+            };
+            return parseTime(etd) - parseTime(std);
+        }
+
+        fetchTrainData();
+        setInterval(fetchTrainData, refreshInterval); // Refresh every 30 seconds
+    </script>
+
+</body>
+</html>
