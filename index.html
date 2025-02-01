@@ -4,140 +4,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Train Departures v2</title>
+    <title>Train Departures</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-blue-50 text-blue-900">
+<body class="bg-blue-100 text-blue-900 p-4">
 
-    <div class="container mx-auto p-6">
-        <h2 class="text-3xl font-bold text-center text-blue-800 mb-4">🚆 Live Train Departures</h2>
-        <p class="text-center text-blue-600 mb-2">Euston → Long Buckby</p>
-
-        <p id="loading" class="text-center text-blue-600 font-medium hidden">Loading train data...</p>
+    <div class="container mx-auto">
+        <h2 class="text-xl font-bold text-center mb-2">🚆 Live Train Departures</h2>
+        <p class="text-center text-blue-700 font-semibold mb-4">Euston → Long Buckby</p>
 
         <div class="overflow-x-auto">
-            <table class="table-auto w-full bg-white shadow-md border border-blue-300">
-                <thead class="bg-blue-200 border-b border-blue-300">
+            <table class="w-full text-sm bg-white shadow-md border border-blue-400 border-collapse rounded-lg">
+                <thead class="bg-blue-300 text-blue-900">
                     <tr>
-                        <th class="p-3 border border-blue-300">Departure</th>
-                        <th class="p-3 border border-blue-300">Expected</th>
-                        <th class="p-3 border border-blue-300">Delay (min)</th>
-                        <th class="p-3 border border-blue-300">Platform</th>
-                        <th class="p-3 border border-blue-300">Carriages</th>
-                        <th class="p-3 border border-blue-300">Operator</th>
-                        <th class="p-3 border border-blue-300">Status</th>
-                        <th class="p-3 border border-blue-300">Reason</th>
+                        <th class="p-2 border border-blue-400">Departure</th>
+                        <th class="p-2 border border-blue-400">Platform</th>
+                        <th class="p-2 border border-blue-400">Carriages</th>
+                        <th class="p-2 border border-blue-400">Operator</th>
+                        <th class="p-2 border border-blue-400">Status</th>
+                        <th class="p-2 border border-blue-400">Arrival</th>
                     </tr>
                 </thead>
-                <tbody id="trainData" class="text-center">
-                    <tr><td colspan="8" class="p-3 text-blue-500 border border-blue-300">Fetching train data...</td></tr>
-                </tbody>
+                <tbody id="trainData" class="text-center bg-white"></tbody>
             </table>
         </div>
 
-        <footer class="mt-4 text-center text-sm text-blue-600">
-            Last updated: <span id="lastUpdated">Loading...</span> | Refreshes every 30 seconds
+        <footer class="mt-4 text-center text-sm text-blue-700">
+            Last updated: <span id="lastUpdated">Just now</span> <br>
+            <span>Refreshes every 30 seconds</span>
         </footer>
+
+        <div id="nrccMessages" class="mt-4 text-center text-blue-700 font-semibold"></div>
+    </div>
+
+    <!-- Modal for Full JSON -->
+    <div id="jsonModal" class="fixed inset-0 bg-gray-900 bg-opacity-80 hidden flex justify-center items-center p-4">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full relative">
+            <h3 class="text-lg font-bold mb-2">Train Details</h3>
+            <pre id="jsonContent" class="text-xs p-3 bg-gray-100 border rounded max-h-96 overflow-auto"></pre>
+            <button onclick="closeModal()" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded">Close</button>
+        </div>
     </div>
 
     <script>
-        const API_KEY = 'ZulOVGAsPxVVFAIKUY0CYoBo5lkQ280LpIxPHVnEWM81uDn6'; // Replace with your actual API key
-        const API_URL = 'https://api1.raildata.org.uk/1010-live-departure-board---staff-version1_0/LDBSVWS/api/20220120/GetDepBoardWithDetails/EUS/';
+        const API_KEY = "ZulOVGAsPxVVFAIKUY0CYoBo5lkQ280LpIxPHVnEWM81uDn6"; // Replace with actual API key
+        const API_URL = "https://api1.raildata.org.uk/1010-live-departure-board---staff-version1_0/LDBSVWS/api/20220120/GetDepBoardWithDetails/EUS/";
         const refreshInterval = 30000; // 30 seconds
 
+        // 📌 Fetch & Display Train Data
         async function fetchTrainData() {
-            const loadingMessage = document.getElementById("loading");
-            loadingMessage.classList.remove("hidden");
-
             const now = new Date();
-            const formattedTime = now.toISOString().replace(/[-:]/g, '').split('.')[0]; // Full timestamp format
-
-            const requestUrl = `${API_URL}${formattedTime}?filterCRS=LBK&filterType=to&numRows=5&timeWindow=120`;
-
-            console.log("Fetching:", requestUrl);
+            const formattedTime = now.toISOString().replace(/[-:]/g, '').split('.')[0]; // Convert to yyyyMMddTHHmmss
 
             try {
-                const response = await fetch(requestUrl, {
+                const response = await fetch(`${API_URL}${formattedTime}?filterCRS=LBK&filterType=to&numRows=5&timeWindow=120`, {
                     headers: { "x-apikey": API_KEY }
                 });
 
-                console.log("Response Status:", response.status);
-                
-                if (!response.ok) {
-                    console.error("Error:", response.status, await response.text());
-                    throw new Error(`HTTP Error ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
 
                 const data = await response.json();
-                console.log("API Response:", data);
-
                 const tableBody = document.getElementById("trainData");
                 tableBody.innerHTML = "";
 
                 if (!data.trainServices || data.trainServices.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="8" class="p-3 text-blue-500 border border-blue-300">No trains found</td></tr>`;
-                } else {
-                    data.trainServices.forEach(train => {
-                        const scheduledTime = formatTime(train.std);
-                        const expectedTime = formatTime(train.etd);
-                        const delay = (train.etd && train.std && train.etd !== 'On time')
-                            ? calculateDelay(train.std, train.etd)
-                            : 0;
-                        const status = train.isCancelled 
-                            ? "Cancelled" 
-                            : train.std === train.etd 
-                            ? "On Time" 
-                            : "Delayed";
-                        const reason = train.cancelReason || train.delayReason || "No reason given";
-                        const trainLength = train.length && !isNaN(train.length) ? `${train.length} carriages` : "Unknown";
-
-                        const statusColor = train.isCancelled 
-                            ? "text-red-600 font-semibold" 
-                            : delay > 0 
-                            ? "text-orange-600 font-semibold"
-                            : "text-green-600 font-semibold";
-
-                        const row = document.createElement("tr");
-                        row.innerHTML = `
-                            <td class="p-3 border border-blue-300">${scheduledTime}</td>
-                            <td class="p-3 border border-blue-300">${expectedTime}</td>
-                            <td class="p-3 border border-blue-300">${delay > 0 ? delay : '—'}</td>
-                            <td class="p-3 border border-blue-300">${train.platform || 'TBA'}</td>
-                            <td class="p-3 border border-blue-300">${trainLength}</td>
-                            <td class="p-3 border border-blue-300">${train.operator || 'Unknown'}</td>
-                            <td class="p-3 border border-blue-300 ${statusColor}">${status}</td>
-                            <td class="p-3 border border-blue-300">${reason}</td>
-                        `;
-                        tableBody.appendChild(row);
-                    });
+                    tableBody.innerHTML = `<tr><td colspan="6" class="p-3 text-gray-500">No trains found</td></tr>`;
+                    return;
                 }
+
+                data.trainServices.forEach(train => {
+                    const departureTime = formatTime(train.std);
+                    const expectedTime = formatTime(train.etd);
+                    const delayMinutes = calculateDelay(train.std, train.etd);
+                    const departureFormatted = departureTime + formatExpectedTime(expectedTime, departureTime, delayMinutes);
+
+                    const arrival = train.subsequentLocations && train.subsequentLocations.length > 0
+                        ? train.subsequentLocations[train.subsequentLocations.length - 1]
+                        : null;
+                    const arrivalTime = formatTime(arrival?.sta);
+                    const expectedArrival = formatTime(arrival?.eta) || arrivalTime;
+                    const arrivalDelay = calculateDelay(arrivalTime, expectedArrival);
+                    const arrivalFormatted = arrivalTime + formatExpectedTime(expectedArrival, arrivalTime, arrivalDelay);
+
+                    const platform = train.platform || 'TBA';
+                    const platformClass = train.platformIsHidden ? "text-red-600 font-bold" : "";
+
+                    const numCoaches = train.formation?.coaches?.length || "Unknown";
+                    const isCancelled = train.isCancelled;
+                    const hasDelay = expectedTime !== "On time" && expectedTime !== departureTime;
+
+                    let status = "On Time";
+                    if (isCancelled) status = "Cancelled";
+                    else if (hasDelay) status = "Delayed";
+
+                    const statusLink = `<a href="#" onclick='showJson(${JSON.stringify(train)})' class="text-blue-700 underline">${status}</a>`;
+
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td class="p-2 border border-blue-400">${departureFormatted}</td>
+                        <td class="p-2 border border-blue-400 ${platformClass}">${platform}</td>
+                        <td class="p-2 border border-blue-400">${numCoaches}</td>
+                        <td class="p-2 border border-blue-400">${train.operator || 'Unknown'}</td>
+                        <td class="p-2 border border-blue-400">${statusLink}</td>
+                        <td class="p-2 border border-blue-400">${arrivalFormatted}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+
+                // Show NRCC Messages
+                displayNrccMessages(data.nrccMessages);
+
             } catch (error) {
                 console.error("Error fetching train data:", error);
-                document.getElementById("trainData").innerHTML = `<tr><td colspan="8" class="p-3 text-red-500 border border-blue-300">Error loading train data</td></tr>`;
+                document.getElementById("trainData").innerHTML = `<tr><td colspan="6" class="p-3 text-red-500">Error loading train data</td></tr>`;
             } finally {
-                loadingMessage.classList.add("hidden");
-                document.getElementById("lastUpdated").textContent = new Date().toLocaleString();
+                document.getElementById("lastUpdated").textContent = new Date().toLocaleTimeString();
             }
         }
 
-        function formatTime(timeStr) {
-            if (!timeStr || typeof timeStr !== 'string') return "N/A";
-
-            // Handle API returning full datetime (e.g., 2025-01-31T16:20:00Z)
-            if (timeStr.includes("T")) {
-                return timeStr.split("T")[1].slice(0, 5); // Extract HH:MM from ISO format
-            }
-
-            // If it's already in HH:MM format
-            if (timeStr.includes(":")) {
-                return timeStr.slice(0, 5);
-            }
-
-            return "N/A"; // Default if unknown format
+        // 📌 Function to format ISO datetime to `HH:MM`
+        function formatTime(isoString) {
+            if (!isoString) return "N/A";
+            const timeMatch = isoString.match(/T(\d{2}:\d{2})/);
+            return timeMatch ? timeMatch[1] : "N/A";
         }
 
+        // 📌 Function to format expected time (only if different)
+        function formatExpectedTime(expected, scheduled, delay) {
+            if (!expected || expected === scheduled) return "";
+            return ` (${expected})${delay > 0 ? ` +${delay} min` : ""}`;
+        }
+
+        // 📌 Calculate Delay in Minutes
         function calculateDelay(std, etd) {
-            if (!std || !etd || std === "N/A" || etd === "N/A") return 0;
+            if (!std || !etd || std === etd) return 0;
             const parseTime = (time) => {
                 const [hh, mm] = time.split(':').map(Number);
                 return hh * 60 + mm;
@@ -145,8 +145,45 @@
             return parseTime(etd) - parseTime(std);
         }
 
+        // 📌 Display NRCC Messages (Proper Formatting)
+        function displayNrccMessages(messages) {
+            const nrccDiv = document.getElementById("nrccMessages");
+            nrccDiv.innerHTML = "";
+
+            if (!messages || messages.length === 0) {
+                return;
+            }
+
+            // Box with correct formatting inside
+            let messageBox = `
+                <div class="mt-4 mx-auto w-full max-w-3xl border border-blue-400 rounded-lg p-3">
+                    <p class="text-center text-sm font-semibold text-blue-700">National Rail Communications Centre (NRCC) Message:</p>
+                    <div class="mt-2 text-center text-sm text-blue-700 font-normal">
+            `;
+
+            // Append messages inside the box (normal weight)
+            messages.forEach(msg => {
+                messageBox += `<p class="text-blue-700 font-normal">${msg.xhtmlMessage}</p>`;
+            });
+
+            messageBox += `</div></div>`; // Close divs properly
+            nrccDiv.innerHTML = messageBox;
+        }
+
+        // 📌 Show JSON Modal
+        function showJson(trainData) {
+            document.getElementById("jsonModal").classList.remove("hidden");
+            document.getElementById("jsonContent").textContent = JSON.stringify(trainData, null, 4);
+        }
+
+        // 📌 Close JSON Modal
+        function closeModal() {
+            document.getElementById("jsonModal").classList.add("hidden");
+        }
+
         fetchTrainData();
-        setInterval(fetchTrainData, refreshInterval); // Refresh every 30 seconds
+        setInterval(fetchTrainData, refreshInterval);
+    
     </script>
 
 </body>
