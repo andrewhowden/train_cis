@@ -11,7 +11,9 @@
 
     <div class="container mx-auto">
         <h2 class="text-xl font-bold text-center mb-2">🚆 Live Train Departures</h2>
-        <p class="text-center text-blue-700 font-semibold mb-4">Euston → Long Buckby</p>
+        
+        <!-- Clickable Route Toggle -->
+        <p id="routeToggle" class="text-center text-blue-700 font-semibold mb-4 cursor-pointer underline" onclick="toggleRoute()">Euston → Long Buckby</p>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm bg-white shadow-md border border-blue-400 border-collapse rounded-lg">
@@ -31,10 +33,11 @@
 
         <footer class="mt-4 text-center text-sm text-blue-700">
             Last updated: <span id="lastUpdated">Just now</span> <br>
-            <span>Refreshes every 30 seconds</span>
+            <span id="refreshCountdown">Refreshes in 30 seconds</span>
         </footer>
 
-        <div id="nrccMessages" class="mt-4 text-center text-blue-700 font-semibold"></div>
+        <!-- NRCC Messages Box -->
+        <div id="nrccMessages" class="mt-4 mx-auto w-full max-w-3xl border border-blue-400 rounded-lg p-3 bg-blue-100 hidden"></div>
     </div>
 
     <!-- Modal for Full JSON -->
@@ -46,145 +49,203 @@
         </div>
     </div>
 
-    <script>
-        const API_KEY = "ZulOVGAsPxVVFAIKUY0CYoBo5lkQ280LpIxPHVnEWM81uDn6"; // Replace with actual API key
-        const API_URL = "https://api1.raildata.org.uk/1010-live-departure-board---staff-version1_0/LDBSVWS/api/20220120/GetDepBoardWithDetails/EUS/";
-        const refreshInterval = 30000; // 30 seconds
+    <!-- Include Audio File for Sound Alert -->
+<audio id="dingSound">
+    <source src="horn.mp3" type="audio/mpeg">
+</audio>
 
-        // 📌 Fetch & Display Train Data
-        async function fetchTrainData() {
-            const now = new Date();
-            const formattedTime = now.toISOString().replace(/[-:]/g, '').split('.')[0]; // Convert to yyyyMMddTHHmmss
+<script>
+    const API_KEY = "ZulOVGAsPxVVFAIKUY0CYoBo5lkQ280LpIxPHVnEWM81uDn6";
+    const refreshInterval = 30000; // 30 seconds
+    let previouslyHiddenPlatforms = new Set(); // Store previously hidden platforms
 
-            try {
-                const response = await fetch(`${API_URL}${formattedTime}?filterCRS=LBK&filterType=to&numRows=5&timeWindow=120`, {
-                    headers: { "x-apikey": API_KEY }
-                });
+    // 📌 Function to calculate delay in minutes
+    function calculateDelay(std, etd) {
+        if (!std || !etd || std === etd) return 0;
 
-                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+        const parseTime = (time) => {
+            const [hh, mm] = time.split(':').map(Number);
+            return hh * 60 + mm;
+        };
 
-                const data = await response.json();
-                const tableBody = document.getElementById("trainData");
-                tableBody.innerHTML = "";
+        return parseTime(etd) - parseTime(std);
+    }
 
-                if (!data.trainServices || data.trainServices.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="6" class="p-3 text-gray-500">No trains found</td></tr>`;
-                    return;
-                }
+    // 📌 Function to format expected time (only if different)
+    function formatExpectedTime(expected, scheduled, delay) {
+        if (!expected || expected === scheduled) return "";
+        return ` (${expected}${delay > 0 ? ` +${delay} min` : ""})`;
+    }
 
-                data.trainServices.forEach(train => {
-                    const departureTime = formatTime(train.std);
-                    const expectedTime = formatTime(train.etd);
-                    const delayMinutes = calculateDelay(train.std, train.etd);
-                    const departureFormatted = departureTime + formatExpectedTime(expectedTime, departureTime, delayMinutes);
+    let countdown = refreshInterval / 1000; // Convert to seconds
 
-                    const arrival = train.subsequentLocations && train.subsequentLocations.length > 0
-                        ? train.subsequentLocations[train.subsequentLocations.length - 1]
-                        : null;
-                    const arrivalTime = formatTime(arrival?.sta);
-                    const expectedArrival = formatTime(arrival?.eta) || arrivalTime;
-                    const arrivalDelay = calculateDelay(arrivalTime, expectedArrival);
-                    const arrivalFormatted = arrivalTime + formatExpectedTime(expectedArrival, arrivalTime, arrivalDelay);
+    function updateCountdown() {
+        const countdownElement = document.getElementById("refreshCountdown");
+        countdownElement.textContent = `Refreshes in ${countdown} second${countdown !== 1 ? 's' : ''}`;
 
-                    const platform = train.platform || 'TBA';
-                    const platformClass = train.platformIsHidden ? "text-red-600 font-bold" : "";
+        if (countdown > 0) {
+            countdown--;
+        } else {
+            fetchTrainData(); // Refresh data
+            countdown = refreshInterval / 1000; // Reset countdown
+        }
+    }
 
-                    const numCoaches = train.formation?.coaches?.length || "Unknown";
-                    const isCancelled = train.isCancelled;
-                    const hasDelay = expectedTime !== "On time" && expectedTime !== departureTime;
+    function updateCountdown() {
+        const countdownElement = document.getElementById("refreshCountdown");
 
-                    let status = "On Time";
-                    if (isCancelled) status = "Cancelled";
-                    else if (hasDelay) status = "Delayed";
-
-                    const statusLink = `<a href="#" onclick='showJson(${JSON.stringify(train)})' class="text-blue-700 underline">${status}</a>`;
-
-                    const row = document.createElement("tr");
-                    row.innerHTML = `
-                        <td class="p-2 border border-blue-400">${departureFormatted}</td>
-                        <td class="p-2 border border-blue-400 ${platformClass}">${platform}</td>
-                        <td class="p-2 border border-blue-400">${numCoaches}</td>
-                        <td class="p-2 border border-blue-400">${train.operator || 'Unknown'}</td>
-                        <td class="p-2 border border-blue-400">${statusLink}</td>
-                        <td class="p-2 border border-blue-400">${arrivalFormatted}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-
-                // Show NRCC Messages
-                displayNrccMessages(data.nrccMessages);
-
-            } catch (error) {
-                console.error("Error fetching train data:", error);
-                document.getElementById("trainData").innerHTML = `<tr><td colspan="6" class="p-3 text-red-500">Error loading train data</td></tr>`;
-            } finally {
-                document.getElementById("lastUpdated").textContent = new Date().toLocaleTimeString();
-            }
+        if (countdown > 0) {
+            countdownElement.textContent = `Refreshes in ${countdown} second${countdown !== 1 ? 's' : ''}`;
+            countdown--;
+        } else {
+            fetchTrainData(); // Refresh data
+            countdown = refreshInterval / 1000; // Reset countdown
         }
 
-        // 📌 Function to format ISO datetime to `HH:MM`
-        function formatTime(isoString) {
-            if (!isoString) return "N/A";
-            const timeMatch = isoString.match(/T(\d{2}:\d{2})/);
-            return timeMatch ? timeMatch[1] : "N/A";
-        }
+        setTimeout(updateCountdown, 1000); // Schedule next update
+    }
 
-        // 📌 Function to format expected time (only if different)
-        function formatExpectedTime(expected, scheduled, delay) {
-            if (!expected || expected === scheduled) return "";
-            return ` (${expected})${delay > 0 ? ` +${delay} min` : ""}`;
-        }
+    // Start the first countdown
+    updateCountdown();
 
-        // 📌 Calculate Delay in Minutes
-        function calculateDelay(std, etd) {
-            if (!std || !etd || std === etd) return 0;
-            const parseTime = (time) => {
-                const [hh, mm] = time.split(':').map(Number);
-                return hh * 60 + mm;
-            };
-            return parseTime(etd) - parseTime(std);
-        }
+    // 🔹 Define Available Routes
+    const routes = [
+        { from: "EUS", to: "LBK", display: "Euston → Long Buckby" },
+        { from: "LBK", to: "EUS", display: "Long Buckby → Euston" },
+        { from: "NMP", to: "LBK", display: "Northampton → Long Buckby" },  
+        { from: "LBK", to: "NMP", display: "Long Buckby → Northampton" }   
+    ];
+    
+    let currentRouteIndex = 0; // Default to first route
 
-        // 📌 Display NRCC Messages (Proper Formatting)
-        function displayNrccMessages(messages) {
-            const nrccDiv = document.getElementById("nrccMessages");
-            nrccDiv.innerHTML = "";
+    function toggleRoute() {
+        currentRouteIndex = (currentRouteIndex + 1) % routes.length;
+        document.getElementById("routeToggle").textContent = routes[currentRouteIndex].display;
 
-            if (!messages || messages.length === 0) {
+        fetchTrainData();
+    }
+
+    async function fetchTrainData() {
+        const now = new Date();
+        const formattedTime = now.toISOString().replace(/[-:]/g, '').split('.')[0];
+        const route = routes[currentRouteIndex];
+
+        try {
+            const response = await fetch(`https://api1.raildata.org.uk/1010-live-departure-board---staff-version1_0/LDBSVWS/api/20220120/GetDepBoardWithDetails/${route.from}/${formattedTime}?filterCRS=${route.to}&filterType=to&numRows=5&timeWindow=120`, {
+                headers: { "x-apikey": API_KEY }
+            });
+
+            if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+
+            const data = await response.json();
+            const tableBody = document.getElementById("trainData");
+            tableBody.innerHTML = "";
+
+            let newlyUnhiddenPlatform = false;
+
+            if (!data.trainServices || data.trainServices.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="p-3 text-gray-500">No trains found</td></tr>`;
                 return;
             }
 
-            // Box with correct formatting inside
-            let messageBox = `
-                <div class="mt-4 mx-auto w-full max-w-3xl border border-blue-400 rounded-lg p-3">
-                    <p class="text-center text-sm font-semibold text-blue-700">National Rail Communications Centre (NRCC) Message:</p>
-                    <div class="mt-2 text-center text-sm text-blue-700 font-normal">
-            `;
+            data.trainServices.forEach(train => {
+                const departureTime = formatTime(train.std);
+                const expectedTime = formatTime(train.etd);
+                const delayMinutes = calculateDelay(train.std, train.etd);
+                const departureFormatted = departureTime + formatExpectedTime(expectedTime, departureTime, delayMinutes);
 
-            // Append messages inside the box (normal weight)
-            messages.forEach(msg => {
-                messageBox += `<p class="text-blue-700 font-normal">${msg.xhtmlMessage}</p>`;
+                const arrival = train.subsequentLocations?.length > 0 ? train.subsequentLocations[train.subsequentLocations.length - 1] : null;
+                const arrivalTime = formatTime(arrival?.sta);
+                const expectedArrival = formatTime(arrival?.eta) || arrivalTime;
+                const arrivalDelay = calculateDelay(arrivalTime, expectedArrival);
+                const arrivalFormatted = arrivalTime + formatExpectedTime(expectedArrival, arrivalTime, arrivalDelay);
+
+                const platform = train.platform || 'TBA';
+                const isPlatformHidden = train.platformIsHidden;
+                const platformClass = isPlatformHidden ? "text-red-600 font-bold" : "";
+
+                // 🚨 Detect platform visibility change
+                if (previouslyHiddenPlatforms.has(train.platform) && !isPlatformHidden) {
+                    newlyUnhiddenPlatform = true; // Mark a change
+                }
+
+                if (isPlatformHidden) {
+                    previouslyHiddenPlatforms.add(train.platform); // Store hidden platforms
+                } else {
+                    previouslyHiddenPlatforms.delete(train.platform); // Remove from hidden if now visible
+                }
+
+                const numCoaches = train.formation?.coaches?.length || "Unknown";
+                const isCancelled = train.isCancelled;
+                const hasDelay = expectedTime !== departureTime;
+
+                let status = "On Time";
+                if (isCancelled) status = "Cancelled";
+                else if (hasDelay) status = "Delayed";
+
+                const statusLink = `<a href="#" onclick='showJson(${JSON.stringify(train)})' class="text-blue-700 underline">${status}</a>`;
+
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td class="p-2 border border-blue-400">${departureFormatted}</td>
+                    <td class="p-2 border border-blue-400 ${platformClass}">${platform}</td>
+                    <td class="p-2 border border-blue-400">${numCoaches}</td>
+                    <td class="p-2 border border-blue-400">${train.operator || 'Unknown'}</td>
+                    <td class="p-2 border border-blue-400">${statusLink}</td>
+                    <td class="p-2 border border-blue-400">${arrivalFormatted}</td>
+                `;
+                tableBody.appendChild(row);
             });
 
-            messageBox += `</div></div>`; // Close divs properly
-            nrccDiv.innerHTML = messageBox;
+            // 🔊 Play sound if a platform becomes visible
+            if (newlyUnhiddenPlatform) {
+                const audio = document.getElementById("dingSound");
+                audio.play().catch(error => console.log("Audio play prevented:", error));
+            }
+
+            displayNrccMessages(data.nrccMessages);
+
+        } catch (error) {
+            console.error("Error fetching train data:", error);
+            document.getElementById("trainData").innerHTML = `<tr><td colspan="6" class="p-3 text-red-500">Error loading train data</td></tr>`;
+        } finally {
+            document.getElementById("lastUpdated").textContent = new Date().toLocaleTimeString();
+        }
+    }
+
+    function formatTime(isoString) {
+        if (!isoString) return "N/A";
+        return isoString.slice(11, 16);
+    }
+
+    function displayNrccMessages(messages) {
+        const nrccDiv = document.getElementById("nrccMessages");
+        nrccDiv.innerHTML = "";
+
+        if (!messages || messages.length === 0) {
+            nrccDiv.classList.add("hidden");
+            return;
         }
 
-        // 📌 Show JSON Modal
-        function showJson(trainData) {
-            document.getElementById("jsonModal").classList.remove("hidden");
-            document.getElementById("jsonContent").textContent = JSON.stringify(trainData, null, 4);
-        }
+        // Create the title
+        let messageBox = `<p class="text-center text-sm font-semibold text-blue-700">National Rail Communications Centre (NRCC) Message:</p>`;
 
-        // 📌 Close JSON Modal
-        function closeModal() {
-            document.getElementById("jsonModal").classList.add("hidden");
-        }
+        // Wrap messages inside a structured div for proper styling
+        messageBox += `<div class="mt-2 text-center text-sm text-blue-700 font-normal">`;
 
-        fetchTrainData();
-        setInterval(fetchTrainData, refreshInterval);
-    
-    </script>
+        messages.forEach(msg => {
+            messageBox += `<p>${msg.xhtmlMessage}</p>`; // No additional styles here; parent div handles it
+        });
+
+        messageBox += `</div>`; // Close messages div properly
+
+        // Apply the content in one go to prevent DOM inconsistencies
+        nrccDiv.innerHTML = messageBox;
+        nrccDiv.classList.remove("hidden");
+    }
+
+    fetchTrainData();
+</script>
 
 </body>
 </html>
