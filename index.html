@@ -144,7 +144,9 @@
 
     async function fetchTrainData() {
         const now = new Date();
-        const formattedTime = now.toISOString().replace(/[-:]/g, '').split('.')[0];
+        now.setMinutes(now.getMinutes() - 15); // Subtract 15 minutes from the current time
+        const formattedTime = now.toISOString().replace(/[-:]/g, '').split('.')[0]; // Convert to yyyyMMddTHHmmss
+
         const route = routes[currentRouteIndex];
 
         try {
