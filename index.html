@@ -62,6 +62,20 @@
     const refreshInterval = 30000; // 30 seconds
     let previouslyHiddenPlatforms = new Set(); // Store previously hidden platforms
 
+    // 📌 Show JSON Modal
+    function showJson(trainData) {
+        const jsonModal = document.getElementById("jsonModal");
+        const jsonContent = document.getElementById("jsonContent");
+
+        jsonContent.textContent = JSON.stringify(trainData, null, 4);
+        jsonModal.classList.remove("hidden");
+    }
+
+    // 📌 Close JSON Modal
+    function closeModal() {
+        document.getElementById("jsonModal").classList.add("hidden");
+    }
+
     // 📌 Function to calculate delay in minutes
     function calculateDelay(std, etd) {
         if (!std || !etd || std === etd) return 0;
